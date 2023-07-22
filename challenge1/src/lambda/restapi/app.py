@@ -49,7 +49,7 @@ def create_new_order():
     order_number = generate_order_number()
     # Set pkey, skey and Order Status
     current_request_body["pkey"] = order_number
-    current_request_body["OrderedBy"] = "dummy@dummy.com"    
+    current_request_body["OrderedBy"] = "dummy@dummy.com"
     current_request_body["Status"] = ORDER_LIFE_CYCLE.PROCESSING
 
     order_table_put_item(current_request_body)
@@ -63,7 +63,7 @@ def create_new_order():
         input=json.dumps(current_request_body),
     )
 
-    return {"Status": 200, "Message": "Order received, processing payment"}
+    return {"Message": f"Order received, processing payment for OrderId {order_number}"}
 
 
 @app.route("/order/{order_number}", methods=["GET"])
@@ -106,29 +106,20 @@ def cancel_order(order_number):
 
     logger.info(f"Records found for order number {order_number}, checking its Status")
 
+    # ORDER IS DELIVERED
     if response["Status"] == ORDER_LIFE_CYCLE.COMPLETED:
         api_response = {
-            "Status": 200,
-            "Message": "Product already delivered, you can opt for an exchange",
+            "Message": "Product already delivered, you can opt for an exchange"
         }
-        response["Status"] = ORDER_LIFE_CYCLE.CANCELLED
-    elif response["Status"] == ORDER_LIFE_CYCLE.PLACED:
-        api_response = {
-            "Status": 200,
-            "Message": "Order is cancelled, your refund is initiated",
-        }
-        response["Status"] = ORDER_LIFE_CYCLE.CANCELLED
-    elif response["Status"] == ORDER_LIFE_CYCLE.IN_TRANSIT:
-        api_response = {
-            "Status": 200,
-            "Message": "Order is cancelled and you've not been charged yet.",
-        }
+    # ORDER IS PLACED OR IN_TRANSIT
+    elif response["Status"] in [ORDER_LIFE_CYCLE.IN_TRANSIT, ORDER_LIFE_CYCLE.PLACED]:
+        api_response = {"Message": "Order is cancelled, your refund is initiated"}
         response["Status"] = ORDER_LIFE_CYCLE.CANCELLED
     else:
         api_response = {
-            "Status": 200,
-            "Message": "Order already cancelled or was never placed successfully",
+            "Message": "Order already cancelled or was never placed successfully"
         }
+        response["Status"] = ORDER_LIFE_CYCLE.CANCELLED
 
     order_table_put_item(response)
     return api_response

@@ -4,3 +4,4 @@ boto3
 chalice[cdkv2]
 aws-lambda-powertools
 schema
+requests==2.25.1
