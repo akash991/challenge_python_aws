@@ -44,8 +44,28 @@ challenge1/
   * apigw_script.py * -> script to test the api-endpoints after deployment
 ```
 
-### Pre-requisite to running cdk commands:
-1. Docker should be installed on your machine: To build the lambda layers, cdk needs docker
+### Steps to run unit tests locally:
+1. cd to the root folder containing the challenges
+   
+2. Setup python virtual environment:
+   ```bash
+   ➜  python3 -m venv .venv
+   ➜  source .venv/bin/activate
+   (.venv) ➜  pip install -r challenge1/requirements.txt 
+   ```
+    
+3. Set PYTHONPATH:
+   ```bash
+   (.venv) ➜  export PYTHONPATH=$PWD/challenge1/src/lambda:$PWD/challenge1/src/layers
+   ```
+    
+4. Run unit tests:
+   ```bash
+   (.venv) ➜  pytest -x challenge1/src
+   ```
+
+### Pre-requisite to running cdk commands on your machine:
+1. Docker should be installed: To build the lambda layers, cdk needs docker
 
 ### Steps to synthesize the stack locally
 1. cd to the root folder containing the challenges
@@ -59,7 +79,7 @@ challenge1/
     
 3. Set PYTHONPATH:
    ```bash
-   (.venv) ➜  export PYTHONPATH=./challenge1/src/layers
+   (.venv) ➜  export PYTHONPATH=$PWD/challenge1/src/lambda:$PWD/challenge1/src/layers
    ```
     
 4. cdk deploy/synth using the aws profile configured locally:

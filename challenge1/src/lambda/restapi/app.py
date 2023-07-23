@@ -49,7 +49,7 @@ def create_new_order():
     try:
         post_order_schema.validate(current_request_body)
     except SchemaError:
-        return BadRequestError(
+        raise BadRequestError(
             f"Invalid json body. Allowed values are: {post_order_schema.schema}"
         )
 
@@ -83,8 +83,8 @@ def get_order_details(order_number):
     method to get order details
     """
     if not re.match("^ORD\d{7}$", order_number):
-        return BadRequestError(
-            "order_number format is invalid, should be 'ORDXXXXXXX' where X is a number."
+        raise BadRequestError(
+            "Order number format is invalid, should be 'ORDXXXXXXX' where X is a number."
         )
 
     try:
@@ -93,6 +93,7 @@ def get_order_details(order_number):
         logger.error(
             f"Invalid Order number {order_number}, please try with a valid order number"
         )
+        raise BadRequestError(f"Order {order_number} doesn't exist")
 
     logger.info(f"Records found for order number {order_number}")
     return response
@@ -104,8 +105,8 @@ def cancel_order(order_number):
     method to cancel existing order
     """
     if not re.match("^ORD\d{7}$", order_number):
-        return BadRequestError(
-            "order_number format is invalid, should be 'ORDXXXXXXX' where X is a number."
+        raise BadRequestError(
+            "Order number format is invalid, should be 'ORDXXXXXXX' where X is a number."
         )
 
     try:
@@ -114,6 +115,7 @@ def cancel_order(order_number):
         logger.error(
             f"Invalid Order number {order_number}, please try with a valid order number"
         )
+        raise BadRequestError(f"Order {order_number} doesn't exist")
 
     logger.info(f"Records found for order number {order_number}, checking its Status")
 
