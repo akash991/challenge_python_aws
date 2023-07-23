@@ -2,14 +2,11 @@ import re
 import os
 import json
 import boto3
-from chalice import (
-    Chalice,
-    BadRequestError,
-)
 from schema import SchemaError
 from aws_lambda_powertools.logging import Logger
 from chalicelib.schemas import post_order_schema
 from chalicelib.utils import generate_order_number
+from chalice import Chalice, BadRequestError, CustomAuthorizer
 
 try:
     from common.errors import ItemNotFound
@@ -23,16 +20,27 @@ logger = Logger()
 app = Chalice(app_name="restapi")
 sf_client = boto3.client("stepfunctions")
 
-
+LAMBDA_FUNCTION_AUTHORIZER_URI = os.environ["LAMBDA_FUNCTION_AUTHORIZER_URI"]
 PAYMENT_PROCESSING_SF_ARN = os.environ["PAYMENT_PROCESSOR_SF_ARN"]
+APIGW_INVOKE_LAMBDA_ROLE_ARN = os.environ["APIGW_INVOKE_LAMBDA_ROLE_ARN"]
 
 
-@app.route("/")
+# custom authorizer for orders API
+authorizer = CustomAuthorizer(
+    name="api-gw-custom-auth",
+    authorizer_uri=LAMBDA_FUNCTION_AUTHORIZER_URI,
+    invoke_role_arn=APIGW_INVOKE_LAMBDA_ROLE_ARN,
+    header="authorizationToken",
+    ttl_seconds=0
+)
+
+
+@app.route("/", authorizer=authorizer)
 def index():
     return {"hello": "world"}
 
 
-@app.route("/order", methods=["POST"])
+@app.route("/order", methods=["POST"], authorizer=authorizer)
 def create_new_order():
     """
     method to create new order details
@@ -66,7 +74,7 @@ def create_new_order():
     return {"Message": f"Order received, processing payment for OrderId {order_number}"}
 
 
-@app.route("/order/{order_number}", methods=["GET"])
+@app.route("/order/{order_number}", methods=["GET"], authorizer=authorizer)
 def get_order_details(order_number):
     """
     method to get order details
@@ -87,7 +95,7 @@ def get_order_details(order_number):
     return response
 
 
-@app.route("/cancel/{order_number}", methods=["PUT"])
+@app.route("/cancel/{order_number}", methods=["PUT"], authorizer=authorizer)
 def cancel_order(order_number):
     """
     method to cancel existing order

@@ -7,7 +7,6 @@ from aws_cdk import (
     aws_sqs as sqs,
     BundlingOptions,
     aws_events as events,
-    aws_cognito as cognito,
     aws_stepfunctions as sf,
     aws_dynamodb as dynamodb,
     aws_events_targets as event_target,
@@ -41,7 +40,7 @@ class Challenge1Stack(Stack):
                 name="OrderedBy", type=dynamodb.AttributeType.STRING
             ),
             index_name="OrderedBy-index",
-            projection_type=dynamodb.ProjectionType.ALL
+            projection_type=dynamodb.ProjectionType.ALL,
         )
 
         # DLQ to receive orders with processing errors
@@ -302,6 +301,47 @@ class Challenge1Stack(Stack):
             )
         )
 
+        # IAM role for lambda authorizer
+        self.lambda_authorizer_role = iam.Role(
+            self,
+            id="LambdaAuthorizerFunction",
+            role_name="lambda-authorizer-role",
+            assumed_by=iam.ServicePrincipal("lambda.amazonaws.com"),
+            inline_policies={
+                "logging": iam.PolicyDocument(
+                    statements=[
+                        iam.PolicyStatement(
+                            actions=["logs:*"],
+                            effect=iam.Effect.ALLOW,
+                            resources=["*"],
+                        )
+                    ]
+                )
+            },
+        )
+
+        # Lambda function to authorized API requests
+        self.api_authorizer_lambda = aws_lambda.Function(
+            self,
+            id="LambdaAuthorizer",
+            function_name="lambda-authorizer-function",
+            description="Lambda function to authorize API gateway requests",
+            role=self.lambda_authorizer_role,
+            code=aws_lambda.Code.from_asset(
+                path=os.path.join(
+                    os.path.dirname(__file__),
+                    "..",
+                    "src",
+                    "lambda",
+                    "apigw_authorizer",
+                )
+            ),
+            handler="index.handler",
+            layers=[self.common_lambda_layer],
+            timeout=Duration.seconds(10),
+            runtime=aws_lambda.Runtime.PYTHON_3_9,
+        )
+
         # Stepfunction that is triggered when a new order
         # is placed.
         # Note: This is a very basic function, the idea is to
@@ -315,6 +355,31 @@ class Challenge1Stack(Stack):
             timeout=Duration.seconds(70),
         )
 
+        # IAM Role for API Gateway Authorization
+        self.gw_lambda_invocation_role = iam.Role(
+            self,
+            id="CustomLambdaInvocationRole",
+            role_name="custom-lambda-auth-invoc-apigw",
+            assumed_by=iam.ServicePrincipal("apigateway.amazonaws.com"),
+            inline_policies={
+                "invoke_lambda": iam.PolicyDocument(
+                    statements=[
+                        iam.PolicyStatement(
+                            effect=iam.Effect.ALLOW,
+                            actions=["lambda:InvokeFunction"],
+                            resources=[self.api_authorizer_lambda.function_arn],
+                        ),
+                        iam.PolicyStatement(
+                            effect=iam.Effect.ALLOW,
+                            actions=["logs:*"],
+                            resources=["*"],
+                        ),
+                    ]
+                )
+            },
+        )
+
+        # IAM role for API Gateway
         self.chalice_iam_role = iam.Role(
             self,
             id="OrderRestApiRole",
@@ -355,6 +420,11 @@ class Challenge1Stack(Stack):
             "ORDERS_TABLE": self.orders_table.table_name,
             "ORDERS_SQS_URL": self.sqs_new_orders.queue_url,
             "PAYMENT_PROCESSOR_SF_ARN": self.stepfunction_process_order_payments.state_machine_arn,
+            "LAMBDA_FUNCTION_AUTHORIZER_URI": (
+                f"arn:aws:apigateway:{self.region}:lambda:path/2015-03-31"
+                f"/functions/{self.api_authorizer_lambda.function_arn}/invocations"
+            ),
+            "APIGW_INVOKE_LAMBDA_ROLE_ARN": self.gw_lambda_invocation_role.role_arn,
         }
 
         chalice_stage_config = {
@@ -378,4 +448,13 @@ class Challenge1Stack(Stack):
                 "restapi",
             ),
             stage_config=chalice_stage_config,
+        )
+
+        # Configuring Lambda's resource based policy
+        aws_lambda.CfnPermission(
+            self,
+            id="CfnLambdaResourceBasedPolicy",
+            action="lambda:InvokeFunction",
+            principal="*",
+            function_name=self.api_authorizer_lambda.function_name,
         )
