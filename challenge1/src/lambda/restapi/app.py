@@ -31,7 +31,7 @@ authorizer = CustomAuthorizer(
     authorizer_uri=LAMBDA_FUNCTION_AUTHORIZER_URI,
     invoke_role_arn=APIGW_INVOKE_LAMBDA_ROLE_ARN,
     header="authorizationToken",
-    ttl_seconds=0
+    ttl_seconds=0,
 )
 
 
@@ -71,7 +71,10 @@ def create_new_order():
         input=json.dumps(current_request_body),
     )
 
-    return {"Message": f"Order received, processing payment for OrderId {order_number}"}
+    return {
+        "Message": f"Order received, processing payment",
+        "OrderId": order_number,
+    }
 
 
 @app.route("/order/{order_number}", methods=["GET"], authorizer=authorizer)
